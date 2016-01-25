@@ -1859,7 +1859,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                         if(port == q_const.FLOODING_ENTRY):
                             continue
                         if(const.DEVICE_OWNER_DVR_INTERFACE in port[2]):
-                            return
+                            continue
                         ips = mac_ip_map.get(port[0])
                         if(ips):
                             ips += port[1]
@@ -1893,13 +1893,13 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                             LOG.debug(_("remote port created failed, "
                                         "binding_profile:%s, mac_address:%s"),
                                       str(binding_profile), mac_address)
-                            return
+                            continue
                         port_id = port_ret['port'].get('id', None)
                         if not port_id:
                             LOG.debug(_("remote port created failed, "
                                         "port_name%s, mac_address:%s"),
                                       port_name, mac_address)
-                            return
+                            continue
                         remote_port = RemotePort(port_id,
                                                  port_name,
                                                  mac_address,

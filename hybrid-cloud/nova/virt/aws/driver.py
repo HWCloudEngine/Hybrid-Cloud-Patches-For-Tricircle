@@ -1138,6 +1138,9 @@ class AwsEc2Driver(driver.ComputeDriver):
         cmd6 = "sudo iscsiadm -m node -T %s -p %s --op delete" % (target_iqn, target_portal)
         cmd6_status, cmd6_out, cmd6_err = ssh_client.execute(cmd6)
         LOG.debug("sudo cmd6 info status=%s ,out=%s, err=%s " % (cmd6_status, cmd6_out, cmd6_err))
+        
+    def detach_interface(self, instance, vif):
+        pass
 
     def detach_volume(self, connection_info, instance, mountpoint,
                       encryption=None):

@@ -497,6 +497,22 @@ class VCA(sdk_vca):
                         for element in doc._children:
                             if element.tag == '{http://www.vmware.com/vcloud/v1.5}Entity':
                                 return element.attrib
+                    elif response.status_code == requests.codes.forbidden:
+                        excep_msg = "Get_media forbidden,get media_ref error, media_name:%s" % (media_name)
+                        raise exceptions.ForbiddenException(excep_msg)
+                    else:
+                        excep_msg = "Get_media failed, get media_ref error, response:%s" % (response)
+                        raise exceptions.VCloudDriverException(excep_msg)
+                else:
+                    excep_msg = "Get_media error, catalog_items size is not one, media_name:%s" % (media_name) 
+                    raise exceptions.VCloudDriverException(excep_msg)
+            elif response.status_code == requests.codes.forbidden:
+                excep_msg = "Get_media forbidden, media_name:%s" % (media_name)
+                raise exceptions.ForbiddenException(excep_msg)
+            else:
+                excep_msg = "Get_media failed, response:%s" % (response)
+                raise exceptions.VCloudDriverException(excep_msg)
+
 
     def get_network_ref(self, vdc_name, network_name):
         vdc = self.get_vdc(vdc_name)

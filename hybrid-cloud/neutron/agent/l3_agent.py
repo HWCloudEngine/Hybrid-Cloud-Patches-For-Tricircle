@@ -1471,7 +1471,7 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
             for fip in floating_ips:
                 fip_ip = fip['floating_ip_address']
                 
-                #whether conert to private ip or not
+                #whether convert to private ip or not
                 if self.elastic_ip_map.get(fip_ip):
                     continue
 
@@ -1643,12 +1643,6 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                 ip_address = private_gw_port['ip_cidr'].split('/')[0]
                 self._send_gratuitous_arp_packet(ns_name,
                                                  interface_name, ip_address)
-
-            ip_wrapr = ip_lib.IPWrapper(self.root_helper)
-            ip_wrapr.netns.execute(['sysctl', '-w', 'net.ipv4.conf.all.send_redirects=0'])
-            ip_wrapr.netns.execute(['sysctl', '-w', 'net.ipv4.conf.default.send_redirects=0'])
-            ip_wrapr.netns.execute(['sysctl', '-w', 'net.ipv4.conf.external_api.send_redirects=0'])
-            ip_wrapr.netns.execute(['sysctl', '-w', 'net.ipv4.ip_forward=1'])
         else:
             if not ri.is_ha:
                 self.driver.init_l3(
@@ -2519,6 +2513,7 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
             private_ip = self.available_private_ips.pop()
             self.private_ip_map[elastic_ip] = private_ip
             self.elastic_ip_map[private_ip] = elastic_ip
+            LOG.info(_("elastic_ip %s mapping to private ip %s."), elastic_ip, private_ip)
 
     def reclaim_private_ip(self, elastic_ip):
         '''Reclaim a private ip.
@@ -2532,7 +2527,8 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
 
         self.available_private_ips.add(private_ip)
         self.elastic_ip_map.pop(private_ip, None)
-
+        LOG.info(_("elastic_ip %s cancel mapping to private ip %s."), elastic_ip, private_ip)
+    
 class L3NATAgentWithStateReport(L3NATAgent):
 
     def __init__(self, host, conf=None):

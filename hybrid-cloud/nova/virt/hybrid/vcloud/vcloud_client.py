@@ -310,26 +310,10 @@ class VCloudClient(object):
         if cmd_result != 0:
             raise exception.NovaException(
                 "Unable to upload meta-data iso file %s" % vapp_name)
-        get_media_result = self._invoke_api("get_media",
+        return self._invoke_api("get_media",
                                             self._metadata_iso_catalog,
                                             media_name)        
-        if not get_media_result:
-            LOG.info('upload meta-data again %s.' % media_name)
-            try:
-                cmd_result = self._upload_metadata_iso(iso_file, media_name)
-            except Exception as e:
-                cmd_result = 1
-                LOG.error('upload meta-data failed second time without overwrite %s.' % (e))
-            if cmd_result != 0:
-                cmd_result = self._upload_metadata_iso(iso_file, media_name, True)
-            if cmd_result != 0:
-                raise exception.NovaException(
-                    "Unable to upload meta-data iso file second time %s" % vapp_name)
-            get_media_result = self._invoke_api("get_media",
-                                                 self._metadata_iso_catalog,
-                                                 media_name)
          
-        return get_media_result
 
     def delete_metadata_iso(self, vapp_name):
         media_name = "metadata_%s.iso" % vapp_name

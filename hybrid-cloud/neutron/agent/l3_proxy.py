@@ -1785,6 +1785,7 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
                      p['id'] not in existing_port_ids]
         old_ports = [p for p in ri.internal_ports if
                      p['id'] not in current_port_ids]
+
         LOG.debug(_("process_router: internal_ports: %s"), internal_ports)
         LOG.debug(_("process_router: existing_port_ids: %s"), existing_port_ids)
         LOG.debug(_("process_router: current_port_ids: %s"), current_port_ids)
@@ -2062,18 +2063,63 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
                         LOG.error(_("create cascaded floatingip for %s failed: %s"),
                                       cascading_fip, e)
                         continue
-                    # Update floating IP status on the neutron server
-                    self.plugin_rpc.update_floatingip_statuses(
-                        self.context, ri.router_id, fip_statuses)
-                    
-                # Identify floating IPs which were disabled
-                ri.floating_ips = set(fip_statuses.keys())
-                for fip_id in existing_floating_ips - ri.floating_ips:
-                    fip_statuses[fip_id] = l3_constants.FLOATINGIP_STATUS_DOWN
-                # Update floating IP status on the neutron server
-                self.plugin_rpc.update_floatingip_statuses(
-                    self.context, ri.router_id, fip_statuses)
+            #handler the legacy mode router
+            elif ex_gw_port and self.conf.agent_mode == 'legacy':
+                cascading_floating_ips = self.get_cascading_floating_ips(ri)
+                cascaded_floating_ips = self.get_cascaded_floating_ips(ri.cascaded_router_id)
 
+                cas_fip = []
+                cad_fip = []
+                #handle floating_ips
+                for cascading_fip in cascading_floating_ips:
+                    for fip in cascaded_floating_ips:
+                        if fip['fixed_ip_address'] == cascading_fip['fixed_ip_address'] \
+                            and fip['floating_ip_address'] == cascading_fip['floating_ip_address']:
+                            fip_statuses[cascading_fip['id']] = fip['status']
+                            cas_fip.append(cascading_fip)
+                            cad_fip.append(fip)
+                            break
+
+                LOG.debug("cas_fip is %s", cas_fip)
+                for fip_port in cas_fip:
+                    cascading_floating_ips.remove(fip_port)
+
+                LOG.debug("cad_fip is %s", cad_fip)
+                for fip_port in cad_fip:
+                    cascaded_floating_ips.remove(fip_port)
+
+                #delete floating_ip
+                for fip in cascaded_floating_ips:
+                    floating_ip_ret = self.csd_client('delete_floatingip', fip['id'])
+                    LOG.debug(_('delete cascaded_floatingip for %s, Response:%s') % 
+                              (fip['id'], str(floating_ip_ret)))
+
+                #add floating_ip
+                ext_net_map = {}
+                for cascading_fip in cascading_floating_ips:
+                    try:
+                        cascaded_net_id = ext_net_map.get(cascading_fip['floating_network_id'], None)
+                        if not cascaded_net_id:
+                            cascaded_net = self.get_cascaded_network_by_cascading(cascading_fip['floating_network_id'])
+                            if cascaded_net:
+                                cascaded_net_id = cascaded_net['id']
+                            else:
+                                fip_statuses[cascading_fip['id']] = l3_constants.FLOATINGIP_STATUS_ERROR
+                                LOG.error(_("cascaded ext_net for %s get failed"), cascading_fip['floating_network_id'])
+                                continue
+                        ext_net_map[cascading_fip['floating_network_id']] = cascaded_net_id
+                        
+                        #in legacy mode, floatingip without port will not send to l3 agent
+                        result = self._create_cascaded_fip_with_port(cascading_fip, cascaded_net_id)
+                        if result:
+                            fip_statuses[cascading_fip['id']] = l3_constants.FLOATINGIP_STATUS_ACTIVE
+                        else:
+                            fip_statuses[cascading_fip['id']] = l3_constants.FLOATINGIP_STATUS_ERROR
+                    except Exception, e:
+                        fip_statuses[cascading_fip['id']] = l3_constants.FLOATINGIP_STATUS_ERROR
+                        LOG.error(_("create cascaded floatingip for %s failed: %s"),
+                                      cascading_fip, e)
+                        continue
         except Exception, e:
             # TODO(salv-orlando): Less broad catching
             # All floating IPs must be put in error state
@@ -2082,7 +2128,9 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
             LOG.error(_("process floatingip failed: %s"), e)
 
         try:
-            if ex_gw_port and self.conf.agent_mode == 'dvr_snat' and ri.router['gw_port_host'] == self.host:
+            if (ex_gw_port and self.conf.agent_mode == 'dvr_snat' and ri.router['gw_port_host'] == self.host) or \
+                    (self.conf.agent_mode == 'dvr' and self.conf.is_public_cloud) or \
+                    (ex_gw_port and self.conf.agent_mode == 'legacy'):
                 # Identify floating IPs which were disabled
                 ri.floating_ips = set(fip_statuses.keys())
                 for fip_id in existing_floating_ips - ri.floating_ips:
@@ -2114,7 +2162,8 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
                 len(ri.local_internal_ports), ri.cascaded_router_id, ri.ex_gw_port, ri.router.get('gw_port_host')
             ))
             if(len(ri.local_internal_ports) == 0 and ri.cascaded_router_id and
-                   (not ri.ex_gw_port or ri.router.get('gw_port_host') != self.host)):
+                   (not ri.ex_gw_port or ri.router.get('gw_port_host') != self.host) and
+                    self.conf.agent_mode != 'legacy'):
                 ri.internal_ports = []
                 ri.local_internal_ports = []
                 ri.extern_extra_routes = {}
@@ -2208,8 +2257,11 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
         search_opts = {'name': 'port@' + cascading_fip['port_id']}
         port_ret = self.csd_client('list_ports', **search_opts)
         if not port_ret or not port_ret.get('ports'):
-            LOG.error(_("cascaded port for %s get failed"), cascading_fip['port_id'])
-            return False
+            search_opts = {'name': 'remote_port@' + cascading_fip['port_id']}
+            port_ret = self.csd_client('list_ports', **search_opts)
+            if not port_ret or not port_ret.get('ports'):
+                LOG.error(_("cascaded port for %s get failed"), cascading_fip['port_id'])
+                return False
         floating_ip['port_id'] = port_ret.get('ports')[0]['id']
         
         #hyp create floatingip_agent_gateway port 
@@ -2457,9 +2509,9 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
 
     def external_gateway_removed(self, ri):
         #(TODO)it's invoked when remove gateway every router, Maybe can improved.
-        if (not ri.router['distributed'] or
-                self.conf.agent_mode != 'dvr_snat'):
-            return
+        #if (not ri.router['distributed'] or
+        #        self.conf.agent_mode != 'dvr_snat'):
+        #    return
         LOG.info('[_external_gateway_removed] remove external gateway port. router:(%s)' % ri.router['id'])
 
         external_net_id = self.conf.gateway_external_network_id
@@ -2485,9 +2537,9 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
             LOG.error('[_external_gateway_removed] Must be specify gateway_external_network_id in l3_proxy.ini')
 
     def external_gateway_added(self, ri, ex_gw_port):
-        if (not ri.router['distributed'] or self.conf.agent_mode != 'dvr_snat' or
-                ri.router['gw_port_host'] != self.host):
-            return
+        #if (not ri.router['distributed'] or self.conf.agent_mode != 'dvr_snat' or
+        #        ri.router['gw_port_host'] != self.host):
+        #    return
         LOG.info('add external gateway port. ex_gw_port:(%s)' % ex_gw_port)
 
         external_net_id = self.conf.gateway_external_network_id

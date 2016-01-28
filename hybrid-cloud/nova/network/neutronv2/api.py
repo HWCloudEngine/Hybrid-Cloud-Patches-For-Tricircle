@@ -587,6 +587,7 @@ class API(base_api.NetworkAPI):
         """List ports for the client based on search options."""
         return neutronv2.get_client(context).list_ports(**search_opts)  
     
+    #begin added by liuling
     def list_routers(self, context, **search_opts):
         """List ports for the client based on search options."""
         return neutronv2.get_client(context).list_routers(**search_opts)  
@@ -594,13 +595,16 @@ class API(base_api.NetworkAPI):
     def list_floatingips(self, context, **search_opts):
         """List ports for the client based on search options."""
         return neutronv2.get_client(context).list_floatingips(**search_opts)
+    #end added by liuling
 
     def show_port(self, context, port_id):
         """Return the port for the client given the port id."""
         return neutronv2.get_client(context).show_port(port_id)
+    #begin added by liuling
     def show_router(self, context, router_id):
         """Return the router for the client given the router id."""
         return neutronv2.get_client(context).show_router(router_id)
+    #end added by liuling
 
     def _get_instance_nw_info(self, context, instance, networks=None,
                               port_ids=None):
@@ -1003,11 +1007,12 @@ class API(base_api.NetworkAPI):
         """Delete a network for client."""
         raise NotImplementedError()
 
-
+    #begin added by liuling
     def delete_floatingip(self, context, floatingip_uuid):
         """Delete a network for client."""
         client = neutronv2.get_client(context)
         return client.delete_floatingip(floatingip_uuid )
+    #end added by liuling
            
     
     def disassociate(self, context, network_uuid):

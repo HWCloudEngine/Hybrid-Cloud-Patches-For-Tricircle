@@ -22,7 +22,7 @@ This is essentially a copy from nova.virt.images.py
 Some slight modifications, but at some point
 we should look at maybe pushing this up to Oslo
 """
-
+#  this file  added by liuling 
 
 import contextlib
 import math

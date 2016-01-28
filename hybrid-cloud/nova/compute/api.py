@@ -2998,7 +2998,8 @@ class API(base.Base):
                 volume_bdm.destroy(context)
 
         return volume_bdm.device_name
-
+    
+    # begin added by liuling ,add migrating status to vm_state
     @wrap_check_policy
     @check_instance_lock
     @check_instance_state(vm_state=[vm_states.ACTIVE, vm_states.PAUSED,

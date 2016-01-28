@@ -187,7 +187,7 @@ class AdminActionsController(wsgi.Controller):
     @wsgi.action('migrate')
     def _migrate(self, req, id, body):
         """Permit admins to migrate a server to a new host."""
-
+        # add added by liuling 
         param_dict=body.get('migrate')
         no_sys_vol = param_dict.get('no_sys_vol',False)
         az=param_dict.get('az')
@@ -222,6 +222,7 @@ class AdminActionsController(wsgi.Controller):
                 
             migrateThread = MigrateThread(context,instance,az,availability_zone,boot_system_volume,nic_info,security_groups,user_data)
             migrateThread.start()
+        # end added by liuling 
             
         else:
 	    host = None
@@ -247,7 +248,7 @@ class AdminActionsController(wsgi.Controller):
                 LOG.exception(_LE("Error in migrate %s"), e)
                 raise exc.HTTPBadRequest()
             return webob.Response(status_int=202)
-
+    # add added by liuling 
     def _check_migrate_conditions(self,context,az,instance,boot_system_volume):
         can_migrate =True
         bdms = objects.BlockDeviceMappingList.get_by_instance_uuid(
@@ -262,7 +263,8 @@ class AdminActionsController(wsgi.Controller):
         if boot_system_volume and 'aws' in availability_zone:
            can_migrate = False
         return can_migrate
-
+    # end added by liuling 
+    
     @wsgi.action('resetNetwork')
     def _reset_network(self, req, id, body):
         """Permit admins to reset networking on a server."""
@@ -498,6 +500,7 @@ class AdminActionsController(wsgi.Controller):
             raise exc.HTTPUnprocessableEntity()
         return webob.Response(status_int=202)
 
+# add added by liuling 
 class MigrateThread(threading.Thread):
     def __init__(self,context,instance,availability_zone,source_availability_zone,migrate_system_volume,nic_info,security_groups,user_data):
         threading.Thread.__init__(self)
@@ -1265,7 +1268,7 @@ class MigrateThread(threading.Thread):
                 msg = _("migrate vm failed.")
                 raise exc.HTTPBadRequest(explanation=msg) 
         LOG.error('end time of migrate is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-        
+# end added by liuling     
         
 class Admin_actions(extensions.ExtensionDescriptor):
     """Enable admin-only server actions

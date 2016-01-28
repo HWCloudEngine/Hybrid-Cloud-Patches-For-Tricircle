@@ -522,38 +522,50 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                            'Allowed values are: true or false.')),
     ]
 
-    EC2_OPTS = [
+    PROVIDER_OPTS = [
         cfg.StrOpt('provider_name',
                    default = '',
-                   help=_('the provider of AZ')),
+                   help=_('the provider type of AZ:aws or vcloud')),
 
         cfg.StrOpt('region',
                    default='',
-                   help=_('the region for connection to EC2')),
+                   help=_('the region for connection to EC2 in aws provider')),
 
         cfg.StrOpt('access_key_id',
                    default = '',
-                   help=_('the access key id for connection to EC2')),
+                   help=_('the access key id for connection to EC2 in aws provider')),
 
         cfg.StrOpt('secret_key',
                    default = '',
-                   help=_('the secret key for connection to EC2')),
+                   help=_('the secret key for connection to EC2 in aws provider')),
 
         cfg.StrOpt('subnet_api_cidr',
                    default = '',
-                   help=_('the IP CIDR for subnet api')),
+                   help=_('the ip cidr of api subnet in aws provider')),
 
         cfg.StrOpt('network_interface_id',
                    default = '',
-                   help=_('the external network interface id of network node')),
+                   help=_('the api subnet interface id of network node in aws provider')),
 
         cfg.StrOpt('gateway_ip',
                    default = '',
-                   help=_('the gateway ip of subnet api')),
+                   help=_('the ip address of eth on api subnet in aws provider')),
 
         cfg.ListOpt('exclued_private_ips',
                    default = [],
-                   help=_('the excluede private ips')),
+                   help=_('the used ips in api subnet without elastci ip in aws provider')),
+
+        cfg.StrOpt('auxiliary_cidr',
+                   default = '',
+                   help=_('the auxiliary cidr in vcloud provider')),
+
+        cfg.StrOpt('auxiliary_gateway_ip',
+                   default = '',
+                   help=_('the auxliliabry gateway ip in vcloud provider')),
+
+        cfg.ListOpt('vcloud_ip_maps',
+                   default = [],
+                   help=_('List of <elastcip>:<auxiliary_ip> in vcloud provider')),
     ]
 
     def __init__(self, host, conf=None):
@@ -584,39 +596,64 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
         self.sync_progress = False
 
         self.provider_name = self.conf.provider_opts.provider_name
-        self.region = self.conf.provider_opts.region
-        self.access_key_id = self.conf.provider_opts.access_key_id
-        self.secret_key = self.conf.provider_opts.secret_key
-
-        self.subnet_api_cidr = self.conf.provider_opts.subnet_api_cidr
-        self.gateway_ip = self.conf.provider_opts.gateway_ip
-        self.network_interface_id = self.conf.provider_opts.network_interface_id
-        self.exclued_private_ips = self.conf.provider_opts.exclued_private_ips
 
         if self.provider_name == 'aws':
+            self.region = self.conf.provider_opts.region
+            self.access_key_id = self.conf.provider_opts.access_key_id
+            self.secret_key = self.conf.provider_opts.secret_key
+            self.subnet_api_cidr = self.conf.provider_opts.subnet_api_cidr
+            self.gateway_ip = self.conf.provider_opts.gateway_ip
+            self.network_interface_id = self.conf.provider_opts.network_interface_id
+            self.exclued_private_ips = self.conf.provider_opts.exclued_private_ips
             self.ec2_conn = boto.ec2.connect_to_region(
                                         self.region,
                                         aws_access_key_id = self.access_key_id,
                                         aws_secret_access_key = self.secret_key)
+        elif self.provider_name == 'vcloud':
+            self.auxiliary_cidr = self.conf.provider_opts.auxiliary_cidr
+            self.gateway_ip = self.conf.provider_opts.auxiliary_gateway_ip
+
+            ip_addr = '%s/%s' % (self.gateway_ip, self.auxiliary_cidr.split('/')[1])
+            ip_cmd = ['ip', 'address', 'add', ip_addr, 'dev', 'external_api']
+
+            ip_wrapr = ip_lib.IPWrapper(self.root_helper)
+            ip_wrapr.netns.execute(ip_cmd, check_exit_code=False)
+
+            iptable_cmd = ['iptables', '-D', 'INPUT', '-d', self.auxiliary_cidr, '-i',
+                            'external_api', '-j', 'ACCEPT']
+            ip_wrapr.netns.execute(iptable_cmd, check_exit_code=False)
+
+            iptable_cmd = ['iptables', '-I', 'INPUT', '5', '-d', self.auxiliary_cidr, '-i',
+                            'external_api', '-j', 'ACCEPT']
+            ip_wrapr.netns.execute(iptable_cmd)
 
         self.private_ip_map = {}
         self.elastic_ip_map = {}
-        for private_ip in self.exclued_private_ips:
-            self.elastic_ip_map[private_ip] = ''
 
-        addresses = []
         if self.provider_name == 'aws':
+            for private_ip in self.exclued_private_ips:
+                self.elastic_ip_map[private_ip] = ''
+
+            addresses = []
             addresses = self.ec2_conn.get_all_addresses()
+            for address in addresses:
+                private_ip = address.private_ip_address
+                elastic_ip = address.public_ip
+                if private_ip:
+                    self.private_ip_map[elastic_ip] = private_ip
+                    self.elastic_ip_map[private_ip] = elastic_ip
 
-        for address in addresses:
-            private_ip = address.private_ip_address
-            elastic_ip = address.public_ip
-            if private_ip:
-                self.private_ip_map[elastic_ip] = private_ip
+            self.available_private_ips = set(self._allocate_pools_for_cidr(self.subnet_api_cidr))
+            self.available_private_ips -= set([x for x in self.elastic_ip_map.keys()])
+        elif self.provider_name == 'vcloud':
+            self.available_private_ips = set()
+            try:
+                self.private_ip_map = common_utils.parse_mappings(self.conf.provider_opts.vcloud_ip_maps)
+            except ValueError as e:
+                raise ValueError(_("Parsing mappings failed: %s.") % e)
+            
+            for elastic_ip, private_ip in self.private_ip_map.items():
                 self.elastic_ip_map[private_ip] = elastic_ip
-
-        self.available_private_ips = set(self._allocate_pools_for_cidr(self.subnet_api_cidr))
-        self.available_private_ips -= set([x for x in self.elastic_ip_map.keys()])
 
         # Get the list of service plugins from Neutron Server
         # This is the first place where we contact neutron-server on startup
@@ -1165,7 +1202,7 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
             # NAT rules are added only if ex_gw_port has an IPv4 address
             for ip_addr in ex_gw_port['fixed_ips']:
                 ex_gw_ip = ip_addr['ip_address']
-                if self.provider_name == 'aws':
+                if self.provider_name in ['aws','vcloud']:
                     ex_gw_ip = self.private_ip_map.get(ex_gw_ip)
                 if netaddr.IPAddress(ex_gw_ip).version == 4:
                     rules = self.external_gateway_nat_rules(ex_gw_ip,
@@ -1269,7 +1306,10 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                                                        private_ip_address = private_ip):
                     LOG.error(_('associate_address %(elastic_ip)s to %(private_ip)s failed'),
                                 {"elastic_ip": elastic_ip, "private_ip": private_ip})
-                    return            
+                    return
+        elif self.provider_name == 'vcloud':
+            #floating ip has been convert to auxilarity ip, and edge has been configured
+            pass
 
         if ri.is_ha:
             self._add_vip(ri, ip_cidr, interface_name)
@@ -1313,6 +1353,9 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
 
             self.ec2_conn.unassign_private_ip_addresses(self.network_interface_id, private_ip)
             self.reclaim_private_ip(elastic_ip)
+        elif self.provider_name == 'vcloud':
+            #floating ip has been convert to auxilarity ip, and edge has been configured		
+            pass
 
         if ri.is_ha:
             self._remove_vip(ri, ip_cidr)
@@ -1467,11 +1510,12 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
         if ri.router['distributed'] and not self.conf.fip_centralized:
             floating_ips = [i for i in floating_ips if i['host'] == self.host]
 
-        if self.provider_name == 'aws':
+        if self.provider_name in ['aws', 'vcloud']:
             for fip in floating_ips:
                 fip_ip = fip['floating_ip_address']
                 
-                #whether convert to private ip or not
+                #whether convert to private ip or not, if converted, fip_ip stored private ip
+                #if not converted,code make sure convert to same private ip as far as possible		
                 if self.elastic_ip_map.get(fip_ip):
                     continue
 
@@ -1622,6 +1666,15 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                     LOG.error(_('associate_address %(elastic_ip)s to %(private_ip)s failed'),
                                 {"elastic_ip": elastic_ip, "private_ip": private_ip})
                     return
+        elif self.provider_name == 'vcloud':
+            elastic_ip = ex_gw_port['ip_cidr'].split('/')[0]
+            if elastic_ip not in self.private_ip_map:
+                self.provision_private_ip(elastic_ip)
+
+            private_ip = self.private_ip_map[elastic_ip]
+            private_gw_port = {}
+            private_gw_port['ip_cidr'] = '%s/%s' % (private_ip, self.auxiliary_cidr.split('/')[1])
+
 
         if not ip_lib.device_exists(interface_name,
                                     root_helper=self.root_helper,
@@ -1633,7 +1686,7 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                              namespace=ns_name,
                              prefix=EXTERNAL_DEV_PREFIX)
 
-        if self.provider_name == 'aws':
+        if self.provider_name in ['aws', 'vcloud']:
             if not ri.is_ha:
                 self.driver.init_l3(
                     interface_name, [private_gw_port['ip_cidr']], namespace=ns_name,
@@ -1736,6 +1789,9 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
 
                 self.ec2_conn.unassign_private_ip_addresses(self.network_interface_id, ex_gw_private_ip)
                 self.reclaim_private_ip(ex_gw_elastic_ip)
+        elif self.provider_name == 'vcloud':
+            #vcloud adopt pre-configured on edge, so do nothing
+            pass
 
     def metadata_filter_rules(self):
         rules = []
@@ -2602,7 +2658,7 @@ class L3NATAgentWithStateReport(L3NATAgent):
 
 def _register_opts(conf):
     conf.register_opts(L3NATAgent.OPTS)
-    conf.register_opts(L3NATAgent.EC2_OPTS, 'provider_opts')
+    conf.register_opts(L3NATAgent.PROVIDER_OPTS, 'provider_opts')
     conf.register_opts(l3_ha_agent.OPTS)
     config.register_interface_driver_opts_helper(conf)
     config.register_use_namespaces_opts_helper(conf)

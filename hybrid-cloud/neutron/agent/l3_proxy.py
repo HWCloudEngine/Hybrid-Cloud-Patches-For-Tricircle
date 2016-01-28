@@ -2162,8 +2162,8 @@ class L3NATAgent(firewall_l3_proxy.FWaaSL3AgentRpcCallback,
                 len(ri.local_internal_ports), ri.cascaded_router_id, ri.ex_gw_port, ri.router.get('gw_port_host')
             ))
             if(len(ri.local_internal_ports) == 0 and ri.cascaded_router_id and
-                   (not ri.ex_gw_port or ri.router.get('gw_port_host') != self.host) and
-                    self.conf.agent_mode != 'legacy'):
+                   (not ri.ex_gw_port or (ri.router.get('gw_port_host') != self.host and
+                    self.conf.agent_mode != 'legacy'))):
                 ri.internal_ports = []
                 ri.local_internal_ports = []
                 ri.extern_extra_routes = {}

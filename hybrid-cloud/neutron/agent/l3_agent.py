@@ -26,6 +26,7 @@ from oslo.config import cfg
 from oslo import messaging
 import Queue
 
+import json
 import boto.ec2
 
 from neutron.agent.common import config
@@ -555,17 +556,9 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                    default = [],
                    help=_('the used ips in api subnet without elastci ip in aws provider')),
 
-        cfg.StrOpt('auxiliary_cidr',
-                   default = '',
-                   help=_('the auxiliary cidr in vcloud provider')),
-
-        cfg.StrOpt('auxiliary_gateway_ip',
-                   default = '',
-                   help=_('the auxliliabry gateway ip in vcloud provider')),
-
-        cfg.ListOpt('vcloud_ip_maps',
-                   default = [],
-                   help=_('List of <elastcip>:<auxiliary_ip> in vcloud provider')),
+        cfg.StrOpt('vcloud_config_file',
+                   default = '/etc/neutron/vcloud.json',
+                   help=_('the config file for vcloud')),
     ]
 
     def __init__(self, host, conf=None):
@@ -596,6 +589,8 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
         self.sync_progress = False
 
         self.provider_name = self.conf.provider_opts.provider_name
+        self.private_ip_map = {}
+        self.elastic_ip_map = {}
 
         if self.provider_name == 'aws':
             self.region = self.conf.provider_opts.region
@@ -609,28 +604,7 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
                                         self.region,
                                         aws_access_key_id = self.access_key_id,
                                         aws_secret_access_key = self.secret_key)
-        elif self.provider_name == 'vcloud':
-            self.auxiliary_cidr = self.conf.provider_opts.auxiliary_cidr
-            self.gateway_ip = self.conf.provider_opts.auxiliary_gateway_ip
 
-            ip_addr = '%s/%s' % (self.gateway_ip, self.auxiliary_cidr.split('/')[1])
-            ip_cmd = ['ip', 'address', 'add', ip_addr, 'dev', 'external_api']
-
-            ip_wrapr = ip_lib.IPWrapper(self.root_helper)
-            ip_wrapr.netns.execute(ip_cmd, check_exit_code=False)
-
-            iptable_cmd = ['iptables', '-D', 'INPUT', '-d', self.auxiliary_cidr, '-i',
-                            'external_api', '-j', 'ACCEPT']
-            ip_wrapr.netns.execute(iptable_cmd, check_exit_code=False)
-
-            iptable_cmd = ['iptables', '-I', 'INPUT', '5', '-d', self.auxiliary_cidr, '-i',
-                            'external_api', '-j', 'ACCEPT']
-            ip_wrapr.netns.execute(iptable_cmd)
-
-        self.private_ip_map = {}
-        self.elastic_ip_map = {}
-
-        if self.provider_name == 'aws':
             for private_ip in self.exclued_private_ips:
                 self.elastic_ip_map[private_ip] = ''
 
@@ -646,14 +620,35 @@ class L3NATAgent(firewall_l3_agent.FWaaSL3AgentRpcCallback,
             self.available_private_ips = set(self._allocate_pools_for_cidr(self.subnet_api_cidr))
             self.available_private_ips -= set([x for x in self.elastic_ip_map.keys()])
         elif self.provider_name == 'vcloud':
-            self.available_private_ips = set()
+            f = file(self.conf.provider_opts.vcloud_config_file)
             try:
-                self.private_ip_map = common_utils.parse_mappings(self.conf.provider_opts.vcloud_ip_maps)
+                vcloud_config = json.load(f)
             except ValueError as e:
-                raise ValueError(_("Parsing mappings failed: %s.") % e)
-            
-            for elastic_ip, private_ip in self.private_ip_map.items():
+                LOG.error(_("load vcloud json config filed %s."), self.conf.provider_opts.vcloud_config_file)
+                return
+
+            self.auxiliary_cidr = vcloud_config['auxiliary_cidr']
+            self.gateway_ip = vcloud_config['auxiliary_gateway_ip']
+
+            ip_addr = '%s/%s' % (self.gateway_ip, self.auxiliary_cidr.split('/')[1])
+            ip_cmd = ['ip', 'address', 'add', ip_addr, 'dev', 'external_api']
+
+            ip_wrapr = ip_lib.IPWrapper(self.root_helper)
+            ip_wrapr.netns.execute(ip_cmd, check_exit_code=False)
+
+            iptable_cmd = ['iptables', '-D', 'INPUT', '-d', self.auxiliary_cidr, '-i', 'external_api', '-j', 'ACCEPT']
+            ip_wrapr.netns.execute(iptable_cmd, check_exit_code=False)
+
+            iptable_cmd = ['iptables', '-I', 'INPUT', '5', '-d', self.auxiliary_cidr, '-i', 'external_api', '-j', 'ACCEPT']
+            ip_wrapr.netns.execute(iptable_cmd)
+
+            for ip_map in vcloud_config['ip_maps']:
+                elastic_ip = ip_map['elastic_ip']
+                private_ip = ip_map['private_ip']
+                self.private_ip_map[elastic_ip] = private_ip
                 self.elastic_ip_map[private_ip] = elastic_ip
+
+            self.available_private_ips = set()
 
         # Get the list of service plugins from Neutron Server
         # This is the first place where we contact neutron-server on startup

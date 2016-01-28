@@ -182,6 +182,8 @@ def fetch_to_vhd(context, image_service,
                  user_id=None, project_id=None):
     fetch_to_volume_format(context, image_service, image_id, dest, 'vpc',
                            blocksize, user_id, project_id)
+    
+# begin added by liuling
 def fetch_from_localfile_to_raw(context, image_service,
                  image_id,source_dir, dest, blocksize,
                  user_id=None, project_id=None, size=None, run_as_root=True):
@@ -255,7 +257,8 @@ def fetch_from_localfile_to_raw(context, image_service,
         #fileutils.delete_if_exists(tmp)
     except:
         LOG.warning('delete the image %s tmp file failed' %image_id)
-    LOG.error('end time of fetch_from_localfile_to_raw is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+    LOG.error('end time of fetch_from_localfile_to_raw is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))  
+# end added by liuling
 
 def fetch_to_raw(context, image_service,
                  image_id, dest, blocksize,
@@ -403,7 +406,8 @@ def upload_volume(context, image_service, image_meta, volume_path,
 
         with fileutils.file_open(tmp, 'rb') as image_file:
             image_service.update(context, image_id, {}, image_file)
-            
+ 
+# begin added by liuling           
 def upload_volume_to_vgw(context,image_service, image_meta, volume_path,volume,vgw_url,
                   volume_format='raw', run_as_root=True):
     LOG.error('begin time of upload_volume_to_vgw is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
@@ -456,6 +460,7 @@ def upload_volume_to_vgw(context,image_service, image_meta, volume_path,volume,v
     #todo delete the tmp file
     fileutils.delete_if_exists(tmp)
     LOG.error('end time of upload_volume_to_vgw is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+# end added by liuling  
 
 def is_xenserver_image(context, image_service, image_id):
     image_meta = image_service.show(context, image_id)

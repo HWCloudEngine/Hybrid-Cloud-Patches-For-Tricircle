@@ -784,6 +784,7 @@ class CinderProxy(manager.SchedulerDependentManager):
             with excutils.save_and_reraise_exception():
                 LOG.error(_('Failed to get cinder python client.'))
     
+    # begin added by liuling  
     def _get_cascaded_glance_url(self,region): 
         kwargs = {
                         'auth_url': CONF.keystone_auth_url,
@@ -795,7 +796,9 @@ class CinderProxy(manager.SchedulerDependentManager):
         keystoneclient = kc.Client(**kwargs)
         management_url = self._get_public_url(keystoneclient, region,service_type='image')
         return management_url
+    # end added by liuling
     
+    # begin added by liuling  
     def _get_public_url(self, kc,region, **kwargs):
         endpoint_info= kc.service_catalog.get_endpoints(**kwargs)
         endpoint_list = endpoint_info.get(kwargs.get('service_type'),None)
@@ -804,7 +807,9 @@ class CinderProxy(manager.SchedulerDependentManager):
             for endpoint in endpoint_list:
                 if region == endpoint.get('region'):
                     return endpoint.get('publicURL') 
-                            
+    # end added by liuling
+                           
+    # begin added by liuling 
     def _get_cascaded_image_service(self,context,cascaded_glance_url):
          
         LOG.debug("the cascaded glance  management_url:%s", cascaded_glance_url)  
@@ -817,7 +822,9 @@ class CinderProxy(manager.SchedulerDependentManager):
                 use_ssl=True,
                 version="1")
         return glance.GlanceImageService(client)
-
+    # end added by liuling
+    
+   
     def _get_image_cascaded(self, context, image_id, cascaded_glance_url):
 
         try:
@@ -864,7 +871,8 @@ class CinderProxy(manager.SchedulerDependentManager):
                 % image_id)
 
         return cascaded_image_id
-
+     
+     
     def _add_to_threadpool(self, func, *args, **kwargs):
         self._tp.spawn_n(func, *args, **kwargs)
 
@@ -1872,6 +1880,8 @@ class CinderProxy(manager.SchedulerDependentManager):
         cascaded_volume_id = \
             self.volumes_mapping_cache['volumes'].get(volume_id, '')
         LOG.debug(_('cascade ino: cop vol to img, ccded vol id is %s'),cascaded_volume_id)
+        
+        # begin added by liuling
         cascaded_region_name = CONF.cascaded_region_name
         cascaded_region_name = cascaded_region_name.split('--',1)[-1]
         cascaded_glance_url = self._get_cascaded_glance_url(cascaded_region_name)
@@ -1881,7 +1891,8 @@ class CinderProxy(manager.SchedulerDependentManager):
             if cascaded_glance_url:
                 if region_name: 
                     image_name = image_name + '_' + region_name    
-          
+        # end added by liuling 
+        
         volume_ref = self.db.volume_get(context, volume_id)
         status_update = self._get_original_status(volume_ref)
 
@@ -1894,7 +1905,7 @@ class CinderProxy(manager.SchedulerDependentManager):
                 image_name=image_name,
                 container_format=container_format,
                 disk_format=disk_format)
-            
+            # begin added by liuling
             if cascaded_glance_url:
                 cascaded_image_service = self._get_cascaded_image_service(context,cascaded_glance_url)
                 def _wait_for_cascaded_image_active():
@@ -1907,9 +1918,10 @@ class CinderProxy(manager.SchedulerDependentManager):
                 timer = loopingcall.FixedIntervalLoopingCall(_wait_for_cascaded_image_active)
                 timer.start(interval=1.0).wait()
              
-            self._update_cascading_image_status(context,  glance.get_default_image_service(), 
+                self._update_cascading_image_status(context,  glance.get_default_image_service(), 
                                                 resp[1]['os-volume_upload_image']['image_id'],
                                                 resp[1]['os-volume_upload_image']['disk_format'])
+            # end added by liuling 
         except Exception:
             with excutils.save_and_reraise_exception():
                 self.db.volume_update(context,

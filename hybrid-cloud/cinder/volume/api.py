@@ -991,6 +991,7 @@ class API(base.Base):
                 # volume glance metadata table
 
                 pass
+        #  begin added by liuling
         image_name = metadata["name"]
         if image_name.startswith('image@') and '_' not in image_name:
             image_id = image_name.split('@')[1].split('_')[0]
@@ -1002,6 +1003,8 @@ class API(base.Base):
             metadata['name'] = image_name
             recv_metadata = self.image_service.create(context, metadata)
         self.update(context, volume, {'status': 'uploading'})
+        # end added by liuling 
+        
         self.volume_rpcapi.copy_volume_to_image(context,
                                                 volume,
                                                 recv_metadata)

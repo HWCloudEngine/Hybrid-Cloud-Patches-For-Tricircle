@@ -303,7 +303,7 @@ class LVMVolumeDriver(driver.VolumeDriver):
 
     def copy_image_to_volume(self, context, volume, image_service, image_id):
         """Fetch the image from image_service and write it to the volume."""
-        
+        # begin added by liuling 
         LOG.error('begin time of COPY_IMAGE_TO_VOLUME is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         image_meta = image_service.show(context, image_id)
         container_format=image_meta.get('container_format')
@@ -316,6 +316,7 @@ class LVMVolumeDriver(driver.VolumeDriver):
                                      self.configuration.volume_dd_blocksize,
                                      size=volume['size'])
             LOG.error('end time of COPY_IMAGE_TO_VOLUME is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+        # end added by liuling 
         else:
             image_utils.fetch_to_raw(context,
                                      image_service,
@@ -323,7 +324,7 @@ class LVMVolumeDriver(driver.VolumeDriver):
                                      self.local_path(volume),
                                      self.configuration.volume_dd_blocksize,
                                      size=volume['size'])
-            
+    # begion added by liuling        
     def _get_management_url(self, kc,image_name, **kwargs):
         endpoint_info= kc.service_catalog.get_endpoints(**kwargs)
         endpoint_list = endpoint_info.get(kwargs.get('service_type'),None)
@@ -332,10 +333,11 @@ class LVMVolumeDriver(driver.VolumeDriver):
             for endpoint in endpoint_list:
                 if region_name == endpoint.get('region'):
                     return endpoint.get('publicURL')
-                    
+    # end added by liuling                
     
     def copy_volume_to_image(self, context, volume, image_service, image_meta):
         """Copy the volume to the specified image."""
+        # begin added by liuling 
         LOG.error('begin time of COPY_VOLUME_TO_IMAGE is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         container_format=image_meta.get('container_format')
         file_name=image_meta.get('id')
@@ -367,6 +369,7 @@ class LVMVolumeDriver(driver.VolumeDriver):
                                           tmp)
             fileutils.delete_if_exists(tmp)
             LOG.error('end time of COPY_VOLUME_TO_IMAGE is %s' %(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+            # end added by liuling 
         else:    
             image_utils.upload_volume(context,
                                       image_service,

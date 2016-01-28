@@ -39,6 +39,7 @@ paste_deploy_opts = [
     cfg.StrOpt('config_file',
                help=_('Name of the paste configuration file.')),
 ]
+# the container_format vgw_url added by liuling using for migrate
 image_format_opts = [
     cfg.ListOpt('container_formats',
                 default=['ami', 'ari', 'aki', 'bare', 'ovf', 'ova', 'vgw_url'],

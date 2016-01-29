@@ -993,7 +993,9 @@ class API(base.Base):
                 pass
         #  begin added by liuling
         image_name = metadata["name"]
-        if image_name.startswith('image@') and '_' not in image_name:
+        if not image_name.startswith('image@'):
+            recv_metadata = self.image_service.create(context, metadata)
+        elif image_name.startswith('image@') and '_' not in image_name:
             image_id = image_name.split('@')[1].split('_')[0]
             image_name = image_name.split('@')[1]
             recv_metadata = self.image_service.show(context, image_id)

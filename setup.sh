@@ -7,16 +7,18 @@ cp -rf /usr/lib64/python2.6/site-packages/nova ./
 cp -rf /usr/lib64/python2.6/site-packages/cinderclient ./
 cp -rf /usr/lib64/python2.6/site-packages/novaclient ./
 cp -rf /usr/lib64/python2.6/site-packages/neutron ./
+cp -rf /usr/lib64/python2.6/site-packages/glance ./
 cd ..
 
 cd hybrid-cloud
 echo "backup success."
 echo "Install patches..."
-cp -rf ./nova /usr/lib64/python2.6/site-packages/
-cp -rf ./novaclient /usr/lib64/python2.6/site-packages/
-cp -rf ./cinder /usr/lib64/python2.6/site-packages/
-cp -rf ./cinderclient /usr/lib64/python2.6/site-packages/
-cp -rf ./neutron /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/nova /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/novaclient /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/cinder /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/cinderclient /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/neutron /usr/lib64/python2.6/site-packages/
+cp -rf ./hybrid-cloud/glance /usr/lib64/python2.6/site-packages/
 
 echo "Install patches success."
 echo "restart service..."
@@ -43,3 +45,7 @@ cps host-template-instance-operate --action start --service neutron neutron-serv
 cps host-template-instance-operate --action stop --service neutron neutron-l3-agent
 sleep 1s
 cps host-template-instance-operate --action start --service neutron neutron-l3-agent
+
+cps host-template-instance-operate --action stop --service glance glance
+sleep 1s
+cps host-template-instance-operate --action start --service glance glance

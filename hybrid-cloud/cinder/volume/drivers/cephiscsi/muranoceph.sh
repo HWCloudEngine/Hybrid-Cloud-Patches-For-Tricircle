@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# this file written by wangliuan
 action=$1
 target_portal=$2
 target_iqn=$3

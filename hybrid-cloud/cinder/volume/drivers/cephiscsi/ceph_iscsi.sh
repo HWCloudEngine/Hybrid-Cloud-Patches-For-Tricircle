@@ -1,4 +1,5 @@
 #!/bin/bash
+# this file written by wangliuan
 action=$1
 rbdpool=$2
 rbdimage=$3

@@ -69,7 +69,7 @@ except ImportError:
     rbd = None
 
 LOG = logging.getLogger(__name__)
-
+# code begin by wangliuan
 service_opts = [
     cfg.StrOpt('backup_ceph_conf', default='/etc/ceph/ceph.conf',
                help='Ceph configuration file to use.'),
@@ -98,10 +98,11 @@ service_opts = [
     cfg.StrOpt('restore_ceph_pool', default='backups',
                help='The Ceph pool where volume backups are stored.')
 ]
-
+# code end by wangliuan
 CONF = cfg.CONF
 CONF.register_opts(service_opts)
 
+# code begin by wangliuan
 class RADOSClient(object):
     """Context manager to simplify error handling for connecting to ceph."""
     def __init__(self, driver, pool=None):
@@ -113,7 +114,7 @@ class RADOSClient(object):
 
     def __exit__(self, type_, value, traceback):
         self.driver._disconnect_from_rados(self.cluster, self.ioctx)
-
+# code end by wangliuan
 
 class VolumeMetadataBackup(object):
 
@@ -201,13 +202,14 @@ class CephBackupDriver(BackupDriver):
                        "settings for rbd striping"))
             self.rbd_stripe_count = 0
             self.rbd_stripe_unit = 0
-
+        # code begin by wangliuan
         self._ceph_backup_user = strutils.safe_encode(CONF.backup_ceph_user)
         self._ceph_backup_pool = strutils.safe_encode(CONF.backup_ceph_pool)
         self._ceph_backup_conf = strutils.safe_encode(CONF.backup_ceph_conf)
         self._ceph_restore_user = self._ceph_backup_user
         self._ceph_restore_pool = self._ceph_backup_pool
         self._ceph_restore_conf = self._ceph_backup_conf
+        # code end by wangliuan
 
     def _validate_string_args(self, *args):
         """Ensure all args are non-None and non-empty."""
@@ -271,6 +273,7 @@ class CephBackupDriver(BackupDriver):
             client.shutdown()
             raise
 
+# code begin by wangliuan
     def _connect_to_restore_rados(self, pool=None):
         """Establish connection to the backup Ceph cluster."""
         client = self.rados.Rados(rados_id=self._ceph_restore_user,
@@ -284,6 +287,7 @@ class CephBackupDriver(BackupDriver):
             # shutdown cannot raise an exception
             client.shutdown()
             raise
+# code begin by wangliuan
 
     def _disconnect_from_rados(self, client, ioctx):
         """Terminate connection with the backup Ceph cluster."""
@@ -947,6 +951,7 @@ class CephBackupDriver(BackupDriver):
             # Retrieve backup volume
             src_rbd = self.rbd.Image(client.ioctx, backup_name,
                                      snapshot=src_snap, read_only=True)
+            # code begin by wangliuan
             try:
                 rbd_meta = rbd_driver.RBDImageMetadata(src_rbd,
                                                        self._ceph_restore_pool,
@@ -955,6 +960,7 @@ class CephBackupDriver(BackupDriver):
                 rbd_fd = rbd_driver.RBDImageIOWrapper(rbd_meta)
                 self._transfer_data(rbd_fd, backup_name, dest_file, dest_name,
                                     length)
+            # code end by wangliuan
             finally:
                 src_rbd.close()
 
@@ -998,6 +1004,7 @@ class CephBackupDriver(BackupDriver):
                   "snap='%(snap)s'" %
                   {'base': base_name, 'snap': restore_point})
         before = time.time()
+        # code begin by wangliuan
         try:
             self._rbd_diff_transfer(base_name, self._ceph_restore_pool,
                                     restore_name, rbd_pool,
@@ -1009,6 +1016,7 @@ class CephBackupDriver(BackupDriver):
             LOG.exception(_("Differential restore failed, trying full "
                             "restore"))
             raise
+        # code begin by wangliuan
 
         # If the volume we are restoring to is larger than the backup volume,
         # we will need to resize it after the diff import since import-diff
@@ -1185,6 +1193,7 @@ class CephBackupDriver(BackupDriver):
 
         If volume metadata is available this will also be restored.
         """
+        # code begin by wangliuan
         backup_des = backup.get('display_description', None)
         if backup_des and backup_des.find('cross_az') >= 0:
             self._ceph_restore_conf = strutils.safe_encode(CONF.restore_ceph_conf)
@@ -1198,6 +1207,7 @@ class CephBackupDriver(BackupDriver):
         LOG.debug('Starting restore from Ceph backup=%(src)s to '
                   'volume=%(dest)s' %
                   {'src': backup['id'], 'dest': target_volume['name']})
+        # code end by wangliuan
 
         try:
             self._restore_volume(backup, target_volume, volume_file)

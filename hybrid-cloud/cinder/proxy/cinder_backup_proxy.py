@@ -180,6 +180,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
         self.backup_cache = []
         self.tenant_id = self._get_tenant_id()
         self.adminCinderClient = self._get_cascaded_cinder_client()
+
     def _init_volume_mapping_cache(self,context):
         try:
             backups = self.db.backup_get_all(context)
@@ -276,6 +277,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
         display_description = backup['display_description']
         container = backup['container']
         display_name = self._gen_ccding_backup_name(backup_id)
+        # code begin by luobin
         availability_zone = cfg.CONF.storage_availability_zone
 
         # Because volume could be available or in-use
@@ -287,6 +289,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
         force = False
         if initial_vol_status == 'in-use':
             force = True
+        # code begin by luobin
 
         LOG.info(_('cascade info: Create backup started, backup: %(backup_id)s '
                    'volume: %(volume_id)s.') %
@@ -350,6 +353,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
             self.volumes_mapping_cache['backups'][backup_id] = \
                 bodyResponse._info['id']
 
+            # code begin by luobin
             # use service metadata to record cascading to cascaded backup id
             # mapping, to support cross az backup restore
             metadata = "mapping_uuid:" + bodyResponse._info['id'] + ";"
@@ -382,6 +386,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
                                                    'size': volume['size'],
                                                    'availability_zone': availability_zone,
                                                     'service_metadata': metadata})
+        # code end by luobin
         LOG.info(_('Create backup finished. backup: %s.'), backup_id)
 
     def _get_cascaded_backup_id(self, backup_id):
@@ -415,11 +420,13 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
                      cascaded_snapshot_id)
         return cascaded_snapshot_id
 
+    # code begin by luobin
     def _clean_up_fake_resource(self, cinderClient,
                                 fake_backup_id,
                                 fake_source_volume_id):
         cinderClient.backups.delete(fake_backup_id)
         cinderClient.volumes.delete(fake_source_volume_id)
+    # code end by luobin
 
     def restore_backup(self, context, backup_id, volume_id):
         """Restore volume backups from configured backup service."""
@@ -465,6 +472,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
             cinderClient = self._get_cascaded_cinder_client(context)
             cascaded_volume_id = self._query_cascaded_vol_id(context, volume_id)
 
+            # code begin by luobin
             # the backup to be restored may be cross-az, so get cascaded backup id
             # not from cache (since cache is built from cinder client of its own
             # region), but retrieve it from service meta data
@@ -565,6 +573,7 @@ class CinderBackupProxy(manager.SchedulerDependentManager):
                     # TODO: changed with its logicalVolumeId to source ccing volume id
                     # TODO: and thus may fail to flush status to correct ccing volume
                     time.sleep(CONF.volume_sync_interval)
+                    # code end by luobin
                     self.db.volume_update(context, volume_id, {'status': 'available'})
                     self.db.backup_update(context, backup_id, {'status': query_status})
                     break

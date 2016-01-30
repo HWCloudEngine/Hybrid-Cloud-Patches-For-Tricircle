@@ -44,11 +44,13 @@ class VolumeBackupManager(base.ManagerWithFind):
         :param description: The description of the backup.
         :rtype: :class:`VolumeBackup`
         """
+        # code begin by luobin
         body = {'backup': {'volume_id': volume_id,
                            'container': container,
                            'name': name,
                            'description': description,
                            'force': force}}
+        # code end by luobin
         return self._create('/backups', body, 'backup')
 
     def get(self, backup_id):

@@ -1037,11 +1037,13 @@ def do_backup_create(cs, args):
         args.description = args.display_description
 
     volume = utils.find_volume(cs, args.volume)
+    # code begin by luobin
     backup = cs.backups.create(volume.id,
                                args.container,
                                args.name,
                                args.description,
                                args.force)
+    # code end by luobin
 
     info = {"volume_id": volume.id}
     info.update(backup._info)
@@ -1106,11 +1108,12 @@ def do_backup_restore(cs, args):
         volume_id = utils.find_volume(cs, vol).id
     else:
         volume_id = None
+    # code begin by luobin
     cs.restores.restore(args.backup, 
                         volume_id, 
                         args.availability_zone,
                         args.description)
-
+    # code end by luobin
 
 @utils.arg('backup', metavar='<backup>',
            help='ID of the backup to export.')

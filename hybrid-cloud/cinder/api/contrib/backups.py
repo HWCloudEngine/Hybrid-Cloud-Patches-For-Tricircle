@@ -246,7 +246,9 @@ class BackupsController(wsgi.Controller):
         container = backup.get('container', None)
         name = backup.get('name', None)
         description = backup.get('description', None)
+        # code begin by luobin
         force = backup.get('force', False)
+        # code end by luobin
 
         LOG.info(_("Creating backup of volume %(volume_id)s in container"
                    " %(container)s"),
@@ -280,7 +282,9 @@ class BackupsController(wsgi.Controller):
         context = req.environ['cinder.context']
         restore = body['restore']
         volume_id = restore.get('volume_id', None)
+        # code begin by luobin
         availability_zone = restore.get('availability_zone', None)
+        # code end by luobin
         description = restore.get('description', None)
 
         LOG.info(_("Restoring backup %(backup_id)s to volume %(volume_id)s"),
@@ -288,11 +292,14 @@ class BackupsController(wsgi.Controller):
                  context=context)
 
         try:
+            # code begin by luobin
             new_restore = self.backup_api.restore(context,
                                                   backup_id=id,
                                                   volume_id=volume_id,
                                                   availability_zone=availability_zone,
                                                   description=description)
+            # code end by luobin
+
         except exception.InvalidInput as error:
             raise exc.HTTPBadRequest(explanation=error.msg)
         except exception.InvalidVolume as error:

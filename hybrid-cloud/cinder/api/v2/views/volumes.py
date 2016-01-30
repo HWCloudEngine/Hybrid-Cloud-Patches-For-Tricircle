@@ -72,7 +72,9 @@ class ViewBuilder(common.ViewBuilder):
                 'replication_status': volume.get('replication_status'),
                 'consistencygroup_id': volume.get('consistencygroup_id'),
                 'shareable': str(volume.get('shareable')).lower(),
-				'updated_at': volume.get('updated_at')
+                # code begin by luobin
+                'updated_at': volume.get('updated_at')
+                # code end by luobin
             }
         }
 

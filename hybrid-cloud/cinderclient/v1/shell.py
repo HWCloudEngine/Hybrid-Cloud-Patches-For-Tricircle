@@ -874,11 +874,13 @@ def do_upload_to_image(cs, args):
 def do_backup_create(cs, args):
     """Creates a volume backup."""
     volume = utils.find_volume(cs, args.volume)
+    # code begin by luobin
     backup = cs.backups.create(volume.id,
                                args.container,
                                args.display_name,
                                args.display_description,
                                args.force)
+    # code end by luobin
 
     info = {"volume_id": volume.id}
     info.update(backup._info)
@@ -940,9 +942,11 @@ def do_backup_restore(cs, args):
         volume_id = utils.find_volume(cs, args.volume_id).id
     else:
         volume_id = None
+    # code begin by luobin
     cs.restores.restore(args.backup, volume_id,
                         args.availability_zone,
                         args.description)
+    # code end by luobin
 
 
 @utils.arg('volume', metavar='<volume>',

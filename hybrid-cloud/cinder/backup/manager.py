@@ -235,9 +235,11 @@ class BackupManager(manager.SchedulerDependentManager):
         backup = self.db.backup_get(context, backup_id)
         volume_id = backup['volume_id']
 
+        # code begin by luobin
         # Because volume could be available or in-use
         initial_vol_status = self.db.volume_get(context, volume_id)['status']
         self.db.volume_update(context, volume_id, {'status': 'backing-up'})
+        # code end by luobin
 
         volume = self.db.volume_get(context, volume_id)
 

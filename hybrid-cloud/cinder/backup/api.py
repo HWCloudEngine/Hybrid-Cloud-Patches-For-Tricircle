@@ -111,6 +111,7 @@ class API(base.Base):
         services = self.db.service_get_all_by_topic(ctxt, topic)
         return [srv['host'] for srv in services if not srv['disabled']]
 
+    # code begin by luobin
     def _check_volume_availability(self, volume, force):
         """Check if the volume can be used."""
         if volume['status'] not in ['available', 'in-use']:
@@ -119,17 +120,20 @@ class API(base.Base):
         if not force and 'in-use' == volume['status']:
             msg = _('Volume to be backed up is in-use, try forcing.')
             raise exception.InvalidVolume(reason=msg)
+    # code end by luobin
 
     def create(self, context, name, description, volume_id,
                container, availability_zone=None, force=False):
         """Make the RPC call to create a volume backup."""
         check_policy(context, 'create')
         volume = self.volume_api.get(context, volume_id)
+        # code begin by luobin
         'comment it to enable force backup'
         '''if volume['status'] != "available":
             msg = _('Volume to be backed up must be available')
             raise exception.InvalidVolume(reason=msg)'''
         self._check_volume_availability(volume, force)
+        # code end by luobin
 
         volume_host = volume_utils.extract_host(volume['host'], 'host')
         if not self._is_backup_service_enabled(volume, volume_host):
@@ -226,9 +230,11 @@ class API(base.Base):
                        "backup %(backup_id)s"),
                      {'size': size, 'backup_id': backup_id},
                      context=context)
+            # code begin by luobin
             # TODO: specify the target volume's volume_type
             volume = self.volume_api.create(context, size, name, description,
                                             availability_zone=availability_zone)
+            # code end by luobin
             volume_id = volume['id']
 
             while True:

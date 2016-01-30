@@ -38,8 +38,10 @@ class VolumeBackupRestoreManager(base.Manager):
         :param volume_id: The ID of the volume to restore the backup to.
         :rtype: :class:`Restore`
         """
+        # code begin by luobin
         body = {'restore': {'volume_id': volume_id,
                             'availability_zone': availability_zone,
                             'description': description}}
+        # code end by luobin
         return self._create("/backups/%s/restore" % backup_id,
                             body, "restore")

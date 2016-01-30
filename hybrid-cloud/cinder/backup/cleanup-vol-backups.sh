@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# code begin by luobin
+
 # list all enabled tenants
 days_to_cleanup=0
 hours_to_cleanup=5
@@ -62,3 +64,4 @@ do
     done
 done
 
+# code end by luobin
